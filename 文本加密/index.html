@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>加密鸭</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>加密鸭</h1>
+        <div class="button-group">
+            <textarea id="inputText" placeholder="请输入文本..."></textarea>
+            <div>
+                <button onclick="clearInputText()"><i class="fas fa-trash"></i> 清空</button>
+                <button onclick="pasteInputText()"><i class="fas fa-paste"></i> 粘贴</button>
+            </div>
+        </div>
+        <label for="encryptAlgorithm">选择加密算法:</label>
+        <select id="encryptAlgorithm" onchange="setDecryptAlgorithm(this.value)">
+            <option value="aes">AES</option>
+            <option value="des">DES</option>
+            <option value="hmac">HMAC</option>
+            <option value="base64">Base64</option>
+        </select>
+        <button onclick="encryptText()"><i class="fas fa-lock"></i> 加密</button>
+        <label for="decryptAlgorithm">选择解密算法:</label>
+        <select id="decryptAlgorithm">
+            <option value="aes">AES</option>
+            <option value="des">DES</option>
+            <option value="hmac">HMAC</option>
+            <option value="base64">Base64</option>
+        </select>
+        <button onclick="decryptText()"><i class="fas fa-unlock"></i> 解密</button>
+        <div class="button-group">
+            <textarea id="outputText" readonly placeholder="加密/解密结果..."></textarea>
+            <button onclick="copyOutputText()"><i class="fas fa-copy"></i> 复制</button>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
