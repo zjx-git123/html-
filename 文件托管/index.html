@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>简易文件托管平台</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app">
+        <div id="storage-progress">
+            <div id="progress-bar"></div>
+            <span id="progress-text">0%</span>
+            <div id="storage-info">
+                <span id="total-storage">总容量: 1PB</span>
+                <span id="used-storage">已用容量: 0B</span>
+            </div>
+        </div>
+        <h1>文件托管平台</h1>
+        <form id="uploadForm">
+            <input type="file" id="fileInput" required>
+            <button type="submit">上传文件</button>
+        </form>
+        <h2>文件列表</h2>
+        <ul id="filesList"></ul>
+    </div>
+
+    <script>
+        let db;
+
+        // 打开IndexedDB数据库
+        const request = indexedDB.open('file-hosting-platform', 1);
+
+        request.onerror = function(event) {
+            console.error('数据库打开失败');
+        };
+
+        request.onsuccess = function(event) {
+            db = event.target.result;
+            loadFiles();
+            updateStorageUsage();
+        };
+
+        request.onupgradeneeded = function(event) {
+            db = event.target.result;
+            const filesStore = db.createObjectStore('files', { keyPath: 'name' });
+        };
+
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            if (!file) {
+                alert('请选择一个文件');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const fileContent = e.target.result;
+                const fileData = {
+                    name: file.name,
+                    size: file.size,
+                    content: fileContent
+                };
+
+                const transaction = db.transaction(['files'], 'readwrite');
+                const store = transaction.objectStore('files');
+                store.put(fileData);
+
+                transaction.oncomplete = function() {
+                    console.log('文件上传成功:', file.name);
+                    fileInput.value = '';
+                    loadFiles();
+                    updateStorageUsage();
+                    alert('文件上传成功');
+                };
+
+                transaction.onerror = function(event) {
+                    console.error('上传文件失败:', event.target.error);
+                    alert('文件上传失败');
+                };
+            };
+            reader.readAsDataURL(file);
+        });
+
+        function loadFiles() {
+            const filesList = document.getElementById('filesList');
+            filesList.innerHTML = '';
+
+            const transaction = db.transaction(['files'], 'readonly');
+            const store = transaction.objectStore('files');
+            const request = store.getAll();
+
+            request.onsuccess = function(event) {
+                const files = event.target.result;
+                files.forEach(file => {
+                    const li = document.createElement('li');
+                    li.innerHTML = `
+                        <span>${file.name} (${file.size} bytes)</span>
+                        <button class="download-btn" onclick="downloadFile('${file.name}')">下载</button>
+                        <button class="delete-btn" onclick="deleteFile('${file.name}')">删除</button>
+                    `;
+                    filesList.appendChild(li);
+                });
+            };
+
+            request.onerror = function(event) {
+                console.error('加载文件列表失败:', event.target.error);
+                alert('加载文件列表失败');
+            };
+        }
+
+        function downloadFile(fileName) {
+            const transaction = db.transaction(['files'], 'readonly');
+            const store = transaction.objectStore('files');
+            const request = store.get(fileName);
+
+            request.onsuccess = function(event) {
+                const file = event.target.result;
+                if (file) {
+                    const blob = dataURItoBlob(file.content);
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = file.name;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    console.log('文件下载成功:', file.name);
+                    alert('文件下载成功');
+                } else {
+                    console.error('文件未找到:', fileName);
+                    alert('文件未找到');
+                }
+            };
+
+            request.onerror = function(event) {
+                console.error('下载文件失败:', event.target.error);
+                alert('下载文件失败');
+            };
+        }
+
+        function deleteFile(fileName) {
+            const transaction = db.transaction(['files'], 'readwrite');
+            const store = transaction.objectStore('files');
+            const request = store.delete(fileName);
+
+            request.onsuccess = function() {
+                console.log('文件删除成功:', fileName);
+                loadFiles();
+                updateStorageUsage();
+                alert('文件删除成功');
+            };
+
+            request.onerror = function(event) {
+                console.error('删除文件失败:', event.target.error);
+                alert('删除文件失败');
+            };
+        }
+
+        function dataURItoBlob(dataURI) {
+            const byteString = atob(dataURI.split(',')[1]);
+            const mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0];
+            const ab = new ArrayBuffer(byteString.length);
+            const ia = new Uint8Array(ab);
+            for (let i = 0; i < byteString.length; i++) {
+                ia[i] = byteString.charCodeAt(i);
+            }
+            return new Blob([ab], { type: mimeString });
+        }
+
+        function updateStorageUsage() {
+            const transaction = db.transaction(['files'], 'readonly');
+            const store = transaction.objectStore('files');
+            const request = store.getAll();
+
+            request.onsuccess = function(event) {
+                const files = event.target.result;
+                const totalSize = files.reduce((acc, file) => acc + file.size, 0);
+                const maxStorage = 1024 * 1024 * 1024 * 1024 * 1024; // 1PB
+                const usagePercentage = (totalSize / maxStorage) * 100;
+                const progressBar = document.getElementById('progress-bar');
+                const progressText = document.getElementById('progress-text');
+                const usedStorage = document.getElementById('used-storage');
+                progressBar.style.width = `${usagePercentage}%`;
+                progressText.textContent = `${usagePercentage.toFixed(2)}%`;
+                usedStorage.textContent = `已用容量: ${formatBytes(totalSize)}`;
+                console.log('存储使用情况:', usagePercentage.toFixed(2) + '%');
+            };
+
+            request.onerror = function(event) {
+                console.error('更新存储使用情况失败:', event.target.error);
+                alert('更新存储使用情况失败');
+            };
+        }
+
+        function formatBytes(bytes, decimals = 2) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const dm = decimals < 0 ? 0 : decimals;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+        }
+    </script>
+</body>
+</html>
